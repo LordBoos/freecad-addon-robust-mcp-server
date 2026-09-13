@@ -265,7 +265,8 @@ doc.recompute()
 print("Created sketch with rectangle")
 """,
             "gui": """
-from PySide2 import QtWidgets
+# FreeCAD's PySide shim maps to the active Qt binding (PySide6 on FreeCAD 1.x)
+from PySide import QtWidgets
 
 class MacroDialog(QtWidgets.QDialog):
     def __init__(self):
@@ -293,7 +294,7 @@ class MacroDialog(QtWidgets.QDialog):
 
 # Show dialog
 dialog = MacroDialog()
-if dialog.exec_():
+if dialog.exec():
     value = dialog.input.text()
     print(f"User entered: {value}")
 """,

@@ -1,0 +1,1 @@
+just freecad::run-gui-custom "C:\Program Files\FreeCAD 1.1\bin\freecad.exe"

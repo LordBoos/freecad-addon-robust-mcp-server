@@ -356,6 +356,9 @@ if shape_string is None:
 if not hasattr(shape_string, 'Shape') or shape_string.Shape is None:
     raise ValueError(f"Object has no shape: {shapestring_name!r}")
 
+# Ensure the Sketcher type is registered before addObject("Sketcher::SketchObject")
+import Sketcher
+
 # Wrap in transaction for undo support
 doc.openTransaction("Convert ShapeString to Sketch")
 try:
@@ -369,8 +372,12 @@ try:
         if body is None:
             raise ValueError(f"Body not found: {{body_name}}")
         sketch = doc.addObject("Sketcher::SketchObject", sketch_name)
-        # Attach to body's XY plane
-        sketch.AttachmentSupport = [(body.Origin.OriginFeatures[0], '')]
+        # Attach to body's XY plane (OriginFeatures[0] is the X axis, not a plane)
+        xy_plane = body.Origin.getObject("XY_Plane")
+        if hasattr(sketch, "AttachmentSupport"):
+            sketch.AttachmentSupport = [(xy_plane, '')]
+        else:
+            sketch.Support = [(xy_plane, '')]
         sketch.MapMode = 'FlatFace'
         body.addObject(sketch)
     else:
@@ -405,9 +412,21 @@ try:
             # Add each edge to the sketch
             # Use the sketch's addGeometry method
             try:
-                # Convert edge to sketch geometry
-                # This handles lines, arcs, and bezier curves
-                sketch.addGeometry(edge.Curve, False)
+                # edge.Curve is the UNBOUNDED underlying curve — adding it
+                # directly turns arcs into full circles and lines into
+                # infinite lines. Trim to the edge's parameter range.
+                curve = edge.Curve
+                if isinstance(curve, Part.Line):
+                    geo = Part.LineSegment(edge.Vertexes[0].Point, edge.Vertexes[-1].Point)
+                elif isinstance(curve, Part.Circle):
+                    if edge.Closed:
+                        geo = curve
+                    else:
+                        geo = Part.ArcOfCircle(curve, edge.FirstParameter, edge.LastParameter)
+                else:
+                    # Bezier/B-spline/ellipse segments: convert bounded part to a B-spline
+                    geo = curve.toBSpline(edge.FirstParameter, edge.LastParameter)
+                sketch.addGeometry(geo, False)
             except Exception:
                 # Some edge types might not convert directly
                 # Try to approximate with line segments
@@ -527,12 +546,12 @@ try:
     if not result_shape.Faces:
         raise ValueError("Could not create any faces from ShapeString")
 
-    # Create Part::Feature to hold the face
+    # Create Part::Feature to hold the face.
+    # NOTE: result_shape was built from shape_string.Shape wires, which are
+    # already in global coordinates — re-applying the source Placement here
+    # would move the face twice.
     face_obj = doc.addObject("Part::Feature", obj_name)
     face_obj.Shape = result_shape
-
-    # Copy placement from source
-    face_obj.Placement = shape_string.Placement
 
     doc.recompute()
     doc.commitTransaction()
@@ -746,8 +765,8 @@ try:
 
     text_solid = text_face.extrude(extrude_dir)
 
-    # Apply the ShapeString placement to the solid
-    text_solid.Placement = shape_string.Placement
+    # text_face was built from global-coordinate wires — the solid is already
+    # positioned; applying shape_string.Placement again would double-move it.
 
     # Perform boolean operation
     if operation == "engrave":
@@ -890,12 +909,11 @@ try:
     except Exception as e:
         raise ValueError(f"Could not extrude faces: {{e}}")
 
-    # Create Part::Feature to hold the result
+    # Create Part::Feature to hold the result.
+    # NOTE: result_shape was built from global-coordinate wires — re-applying
+    # the source Placement would move the solid twice.
     extruded_obj = doc.addObject("Part::Feature", obj_name)
     extruded_obj.Shape = result_shape
-
-    # Copy placement from source
-    extruded_obj.Placement = shape_string.Placement
 
     doc.recompute()
     doc.commitTransaction()

@@ -535,6 +535,16 @@ try:
         result.Shapes = [obj1, obj2]
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
+    # A failed/degenerate boolean (e.g. common of disjoint solids) recomputes
+    # "successfully" but yields an empty shape — treat that as an error.
+    if result.Shape.isNull() or result.Shape.Volume < 1e-9:
+        raise ValueError(
+            "Boolean %s produced an empty result - the inputs likely do not"
+            " overlap (or the cut removed everything)" % {operation!r}
+        )
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -601,6 +611,9 @@ try:
 
     obj.Placement = FreeCAD.Placement(pos, rot)
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -668,9 +681,16 @@ try:
     scale_vec = {scale_vec}
     center = obj.Shape.BoundBox.Center
 
-    # Create scaled shape
+    # Scale about the shape's center, not the global origin — otherwise
+    # off-origin objects get translated as a side effect of scaling.
     mat = FreeCAD.Matrix()
-    mat.scale(scale_vec)
+    mat.move(center * -1)
+    scale_mat = FreeCAD.Matrix()
+    scale_mat.scale(scale_vec)
+    mat = scale_mat.multiply(mat)
+    move_back = FreeCAD.Matrix()
+    move_back.move(center)
+    mat = move_back.multiply(mat)
     scaled_shape = obj.Shape.transformGeometry(mat)
 
     # Create result object
@@ -679,6 +699,9 @@ try:
     result.Shape = scaled_shape
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -756,6 +779,9 @@ try:
 
     obj.Placement = FreeCAD.Placement(rotated_pos, new_rot)
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -830,6 +856,9 @@ try:
     )
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -912,6 +941,9 @@ try:
     result.Shape = mirrored
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -950,7 +982,8 @@ _result_ = {{
 if not FreeCAD.GuiUp:
     _result_ = []
 else:
-    sel = FreeCADGui.Selection.getSelectionEx({doc_name!r})
+    # getSelectionEx rejects None — empty string means "active document"
+    sel = FreeCADGui.Selection.getSelectionEx({doc_name!r} or "")
     _result_ = []
     for s in sel:
         _result_.append({{
@@ -1083,6 +1116,9 @@ try:
     obj.Shape = line
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -1325,6 +1361,9 @@ try:
     result.Shape = shell
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -1390,6 +1429,9 @@ try:
     result.Shape = offset_shape
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -1468,6 +1510,9 @@ try:
     result.Shape = section_shape
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -1576,6 +1621,9 @@ try:
     result.Shape = compound
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -1643,6 +1691,9 @@ try:
         created.append(new_obj.Name)
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -1714,6 +1765,9 @@ try:
     result.Shape = fused
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -1783,6 +1837,9 @@ try:
     result.Shape = common
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -1859,6 +1916,9 @@ try:
     obj.Shape = wire
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -1927,6 +1987,9 @@ try:
     result.Shape = face
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -1992,6 +2055,9 @@ try:
     result.Shape = extruded
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -2065,6 +2131,9 @@ try:
     result.Shape = revolved
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -2149,6 +2218,9 @@ try:
     result.Shape = loft
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -2235,6 +2307,9 @@ try:
     result.Shape = sweep
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{

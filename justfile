@@ -16,6 +16,8 @@
 #
 # Or use `just list-all` to see all commands from all modules at once.
 
+set windows-shell := ["C:/Program Files/Git/bin/bash.exe", "-c"]
+
 # Import modules
 mod coderabbit 'just/coderabbit.just'
 mod dev 'just/dev.just'

@@ -71,6 +71,9 @@ def register_spreadsheet_tools(
         bridge = await get_bridge()
 
         code = f"""
+# Ensure the Spreadsheet type is registered before addObject("Spreadsheet::Sheet")
+import Spreadsheet
+
 doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
 if doc is None:
     doc = FreeCAD.newDocument("Unnamed")
@@ -241,22 +244,10 @@ except Exception:
     content = None
 
 # Check for alias
-alias = None
 try:
-    # Get all aliases and check if this cell has one
-    aliases = sheet.getPropertyByName("cells").Content
-    # Parse XML to find alias - simplified approach
-    for prop_name in dir(sheet):
-        if not prop_name.startswith("_"):
-            try:
-                cell_prop = sheet.getCellFromAlias(prop_name)
-                if cell_prop == cell:
-                    alias = prop_name
-                    break
-            except Exception:
-                pass
+    alias = sheet.getAlias(cell) or None
 except Exception:
-    pass
+    alias = None
 
 _result_ = {{
     "cell": cell,

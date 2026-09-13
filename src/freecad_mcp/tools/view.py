@@ -613,14 +613,21 @@ import os
 
 parts = []
 
-# Get parts library paths
+# Get parts library paths — the addon installs into the user Mod dir
+# (e.g. %APPDATA%/FreeCAD/Mod/parts_library), not the resource dir.
 try:
-    # Standard library path
-    lib_path = FreeCAD.getResourceDir() + "Mod/Parts_Library"
-    if not os.path.exists(lib_path):
-        lib_path = os.path.expanduser("~/.FreeCAD/Mod/PartsLibrary")
+    candidates = []
+    user_mod = os.path.join(FreeCAD.getUserAppDataDir(), "Mod")
+    if os.path.isdir(user_mod):
+        for d in os.listdir(user_mod):
+            if d.lower().replace("_", "") in ("partslibrary", "partlibrary"):
+                candidates.append(os.path.join(user_mod, d))
+    candidates.append(FreeCAD.getResourceDir() + "Mod/Parts_Library")
+    candidates.append(os.path.expanduser("~/.FreeCAD/Mod/PartsLibrary"))
 
-    if os.path.exists(lib_path):
+    lib_path = next((p for p in candidates if os.path.exists(p)), None)
+
+    if lib_path:
         for root, dirs, files in os.walk(lib_path):
             category = os.path.relpath(root, lib_path)
             if category == ".":

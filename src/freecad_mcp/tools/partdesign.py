@@ -125,6 +125,9 @@ try:
             sketch.Placement = FreeCAD.Placement(FreeCAD.Vector(0,0,0), FreeCAD.Rotation(FreeCAD.Vector(0,1,0), 90))
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -197,6 +200,9 @@ try:
     sketch.addConstraint(Sketcher.Constraint("Coincident", n+3, 2, n, 1))
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -249,6 +255,9 @@ try:
 
     idx = sketch.addGeometry(Part.Circle(FreeCAD.Vector({center_x}, {center_y}, 0), FreeCAD.Vector(0,0,1), {radius}), False)
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -315,10 +324,13 @@ try:
     pad = body.newObject("PartDesign::Pad", pad_name)
     pad.Profile = sketch
     pad.Length = {length}
-    pad.Symmetric = {symmetric}
+    pad.Midplane = {symmetric}
     pad.Reversed = {reversed}
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -387,6 +399,9 @@ try:
     pocket.Type = {type!r}
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -448,6 +463,8 @@ for parent in doc.Objects:
 
 # Get selected edges (None means all edges)
 selected_edges = {edges_param!r}
+if not selected_edges:
+    selected_edges = ["Edge%d" % (i + 1) for i in range(len(obj.Shape.Edges))]
 
 # Wrap in transaction for undo support
 doc.openTransaction("Fillet Edges")
@@ -472,6 +489,9 @@ try:
         fillet.Edges = edge_list
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -533,6 +553,8 @@ for parent in doc.Objects:
 
 # Get selected edges (None means all edges)
 selected_edges = {edges_param!r}
+if not selected_edges:
+    selected_edges = ["Edge%d" % (i + 1) for i in range(len(obj.Shape.Edges))]
 
 # Wrap in transaction for undo support
 doc.openTransaction("Chamfer Edges")
@@ -557,6 +579,9 @@ try:
         chamfer.Edges = edge_list
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -633,7 +658,7 @@ try:
     rev = body.newObject("PartDesign::Revolution", rev_name)
     rev.Profile = sketch
     rev.Angle = {angle}
-    rev.Symmetric = {symmetric}
+    rev.Midplane = {symmetric}
     rev.Reversed = {reversed}
 
     # Set axis reference
@@ -648,6 +673,9 @@ try:
             rev.ReferenceAxis = (sketch, ["H_Axis"])
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -724,7 +752,7 @@ try:
     groove = body.newObject("PartDesign::Groove", groove_name)
     groove.Profile = sketch
     groove.Angle = {angle}
-    groove.Symmetric = {symmetric}
+    groove.Midplane = {symmetric}
     groove.Reversed = {reversed}
 
     # Set axis reference
@@ -739,6 +767,9 @@ try:
             groove.ReferenceAxis = (sketch, ["H_Axis"])
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -781,8 +812,11 @@ _result_ = {{
                 - "ThroughAll" - Through entire part
                 - "UpToFirst" - Up to first face
             threaded: Whether hole is threaded. Defaults to False.
-            thread_type: Thread standard. Options: "ISO", "UNC", "UNF".
-            thread_size: Thread size (e.g., "M6", "M8", "#10", "1/4").
+            thread_type: Thread standard. "ISO" (metric coarse) and "ISOFine"
+                are mapped to FreeCAD's enum values; any exact enum value
+                (e.g. "ISOMetricProfile", "UNC", "UNF") is accepted as-is.
+            thread_size: Thread size (e.g., "M6", "M8"). Validated against the
+                sizes FreeCAD offers for the chosen thread_type.
             name: Hole feature name. Auto-generated if None.
             doc_name: Document containing the sketch. Uses active document if None.
 
@@ -831,13 +865,39 @@ try:
     # Set threading
     if {threaded}:
         hole.Threaded = True
-        hole.ThreadType = {thread_type!r}
-        hole.ThreadSize = {thread_size!r}
+        # Map friendly names to real ThreadType enum values and validate
+        # against what this FreeCAD version actually supports.
+        thread_map = {{"ISO": "ISOMetricProfile", "ISOFine": "ISOMetricFineProfile"}}
+        requested_type = thread_map.get({thread_type!r}, {thread_type!r})
+        valid_types = hole.getEnumerationsOfProperty("ThreadType") or []
+        if requested_type not in valid_types:
+            raise ValueError(
+                "Invalid thread_type %r (resolved to %r); valid values: %s"
+                % ({thread_type!r}, requested_type, valid_types)
+            )
+        hole.ThreadType = requested_type
+        valid_sizes = hole.getEnumerationsOfProperty("ThreadSize") or []
+        requested_size = {thread_size!r}
+        if requested_size not in valid_sizes:
+            # FreeCAD 1.x names metric sizes with pitch (e.g. "M6x1");
+            # resolve a bare "M6" to the first (coarse) matching entry.
+            candidates = [s for s in valid_sizes if s.startswith(requested_size + "x")]
+            if candidates:
+                requested_size = candidates[0]
+            else:
+                raise ValueError(
+                    "Invalid thread_size %r for thread_type %r; valid values: %s"
+                    % (requested_size, requested_type, valid_sizes)
+                )
+        hole.ThreadSize = requested_size
     else:
         hole.Threaded = False
         hole.Diameter = {diameter}
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -914,6 +974,9 @@ try:
     pattern.Direction = (body.Origin.getObject(f"{{dir_name}}_Axis"), [""])
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -990,6 +1053,9 @@ try:
     pattern.Axis = (body.Origin.getObject(f"{{axis_name}}_Axis"), [""])
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -1068,6 +1134,9 @@ try:
     mirror.MirrorPlane = (body.Origin.getObject({plane_ref!r}), [""])
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -1131,6 +1200,9 @@ try:
         {construction}
     )
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -1197,6 +1269,9 @@ try:
     )
     idx = sketch.addGeometry(arc, False)
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -1249,6 +1324,9 @@ try:
 
     idx = sketch.addGeometry(Part.Point(FreeCAD.Vector({x}, {y}, 0)), False)
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -1326,6 +1404,9 @@ try:
     loft.Closed = {closed}
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -1415,6 +1496,9 @@ try:
     sweep.Transition = {transition_map[transition]}
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
@@ -1493,6 +1577,9 @@ try:
     )
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -1556,6 +1643,9 @@ try:
     datum.MapMode = "ObjectXY"
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -1614,16 +1704,18 @@ try:
     datum_name = {name!r} or "DatumPoint"
     datum = body.newObject("PartDesign::Point", datum_name)
 
-    # Set offset from origin
-    origin_point = body.Origin.getObject("Point")
-    datum.AttachmentSupport = [(origin_point, "")]
-    datum.MapMode = "ObjectOrigin"
-    datum.AttachmentOffset = FreeCAD.Placement(
+    # An Origin has no "Point" feature — place the datum directly instead
+    # of attaching it to a nonexistent origin point.
+    datum.MapMode = "Deactivated"
+    datum.Placement = FreeCAD.Placement(
         FreeCAD.Vector({pos[0]}, {pos[1]}, {pos[2]}),
         FreeCAD.Rotation(0, 0, 0, 1)
     )
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -1708,16 +1800,34 @@ try:
     draft = body.newObject("PartDesign::Draft", draft_name)
 
     draft.Angle = {angle}
-    draft.Base = (obj, selected_faces if selected_faces else [])
+
+    plane_name = {plane!r}
+
+    # None means "all suitable faces": planar faces parallel to the pull
+    # direction (side faces). An empty Base would fail on recompute.
+    if not selected_faces:
+        pull_map = {{"XY": (0.0, 0.0, 1.0), "XZ": (0.0, 1.0, 0.0), "YZ": (1.0, 0.0, 0.0)}}
+        pull = FreeCAD.Vector(*pull_map.get(plane_name, (0.0, 0.0, 1.0)))
+        selected_faces = []
+        for i, f in enumerate(obj.Shape.Faces):
+            if f.Surface.TypeId == "Part::GeomPlane":
+                if abs(f.normalAt(0, 0).dot(pull)) < 1e-6:
+                    selected_faces.append("Face%d" % (i + 1))
+        if not selected_faces:
+            raise ValueError("No suitable side faces found to draft - pass faces explicitly")
+
+    draft.Base = (obj, selected_faces)
 
     # Set neutral plane
-    plane_name = {plane!r}
     plane_map = {{"XY": "XY_Plane", "XZ": "XZ_Plane", "YZ": "YZ_Plane"}}
     if plane_name in plane_map:
         plane_obj = body.Origin.getObject(plane_map[plane_name])
         draft.NeutralPlane = (plane_obj, "")
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -1794,6 +1904,9 @@ try:
     thick.Join = 0  # Arc join
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -1876,6 +1989,9 @@ try:
     loft.Closed = {closed}
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -1963,6 +2079,9 @@ try:
     pipe.Transition = {transition_map[transition]}
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -2024,6 +2143,9 @@ try:
     ellipse = Part.Ellipse(center, {major_radius}, {minor_radius})
     idx = sketch.addGeometry(ellipse, False)
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -2104,6 +2226,9 @@ try:
         sketch.addConstraint(Sketcher.Constraint("Coincident", idx1, 2, idx2, 1))
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -2213,6 +2338,9 @@ try:
     sketch.addConstraint(Sketcher.Constraint("Coincident", first_idx + 3, 2, first_idx, 1))
 
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -2276,6 +2404,9 @@ try:
 
     idx = sketch.addGeometry(bspline, False)
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -2304,6 +2435,7 @@ except Exception:
         geometry2: int = -2,
         point2: int = -1,
         value: float | None = None,
+        geometry3: int = -2,
         doc_name: str | None = None,
     ) -> dict[str, Any]:
         """Add a constraint to a sketch.
@@ -2323,7 +2455,10 @@ except Exception:
                     Use -1 for edge itself.
             geometry2: Index of second geometry element. Use -2 for external.
             point2: Point index on second geometry.
-            value: Value for dimensional constraints (distance, angle, etc.).
+            value: Value for dimensional constraints. Distances in mm,
+                angles in DEGREES (converted to radians internally).
+            geometry3: Third geometry index — required for "Symmetric"
+                (the symmetry line/point the two points mirror about).
             doc_name: Document containing the sketch. Uses active document if None.
 
         Returns:
@@ -2334,6 +2469,7 @@ except Exception:
         bridge = await get_bridge()
 
         code = f"""
+import math
 import Sketcher
 
 doc = FreeCAD.ActiveDocument if {doc_name!r} is None else FreeCAD.getDocument({doc_name!r})
@@ -2345,11 +2481,14 @@ if sketch is None:
 doc.openTransaction("Add Sketch Constraint")
 try:
     ctype = {constraint_type!r}
-    g1, p1, g2, p2 = {geometry1}, {point1}, {geometry2}, {point2}
+    g1, p1, g2, p2, g3 = {geometry1}, {point1}, {geometry2}, {point2}, {geometry3}
     value = {value!r}
 
     # Build constraint based on type and parameters
-    if ctype in ["Horizontal", "Vertical", "Block"]:
+    if ctype == "Block":
+        # Block only has the (geoId) form; a point index is not applicable
+        constraint = Sketcher.Constraint(ctype, g1)
+    elif ctype in ["Horizontal", "Vertical"]:
         if p1 >= 0:
             constraint = Sketcher.Constraint(ctype, g1, p1)
         else:
@@ -2360,11 +2499,12 @@ try:
         else:
             constraint = Sketcher.Constraint(ctype, g1, g2)
     elif ctype == "Symmetric":
-        # Symmetric requires geometry2 to be the symmetry line index
-        # Points g1,p1 and g2,p2 are symmetric about line geometry2
+        # Points (g1,p1) and (g2,p2) are symmetric about geometry3
         if g2 < 0:
-            raise ValueError("Symmetric constraint requires geometry2 as the symmetry line index")
-        constraint = Sketcher.Constraint(ctype, g1, p1, g2, p2, geometry2)
+            raise ValueError("Symmetric constraint requires geometry2 as the second point's geometry")
+        if g3 < 0 or g3 == g2:
+            raise ValueError("Symmetric constraint requires geometry3 as the symmetry line/point (distinct from geometry2)")
+        constraint = Sketcher.Constraint(ctype, g1, p1, g2, p2, g3)
     elif ctype in ["Distance", "DistanceX", "DistanceY"]:
         if value is None:
             raise ValueError(f"{{ctype}} constraint requires a value")
@@ -2381,6 +2521,8 @@ try:
     elif ctype == "Angle":
         if value is None:
             raise ValueError("Angle constraint requires a value")
+        # Sketcher's Angle constraint takes RADIANS; the tool API takes degrees
+        value = math.radians(value)
         if g2 >= 0:
             constraint = Sketcher.Constraint(ctype, g1, g2, value)
         else:
@@ -2390,6 +2532,9 @@ try:
 
     idx = sketch.addConstraint(constraint)
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -2616,7 +2761,7 @@ except Exception:
             geometry2,
             point2,
             distance,
-            doc_name,
+            doc_name=doc_name,
         )
 
     @mcp.tool()
@@ -2641,7 +2786,7 @@ except Exception:
                 - constraint_index: Index of the added constraint
         """
         return await add_sketch_constraint(
-            sketch_name, "DistanceX", geometry, point, -2, -1, distance, doc_name
+            sketch_name, "DistanceX", geometry, point, -2, -1, distance, doc_name=doc_name
         )
 
     @mcp.tool()
@@ -2666,7 +2811,7 @@ except Exception:
                 - constraint_index: Index of the added constraint
         """
         return await add_sketch_constraint(
-            sketch_name, "DistanceY", geometry, point, -2, -1, distance, doc_name
+            sketch_name, "DistanceY", geometry, point, -2, -1, distance, doc_name=doc_name
         )
 
     @mcp.tool()
@@ -2689,7 +2834,7 @@ except Exception:
                 - constraint_index: Index of the added constraint
         """
         return await add_sketch_constraint(
-            sketch_name, "Radius", geometry_index, -1, -2, -1, radius, doc_name
+            sketch_name, "Radius", geometry_index, -1, -2, -1, radius, doc_name=doc_name
         )
 
     @mcp.tool()
@@ -2714,7 +2859,7 @@ except Exception:
                 - constraint_index: Index of the added constraint
         """
         return await add_sketch_constraint(
-            sketch_name, "Angle", geometry1, -1, geometry2, -1, angle, doc_name
+            sketch_name, "Angle", geometry1, -1, geometry2, -1, angle, doc_name=doc_name
         )
 
     @mcp.tool()
@@ -2724,13 +2869,14 @@ except Exception:
         point_index: int = -1,
         doc_name: str | None = None,
     ) -> dict[str, Any]:
-        """Fix (lock) a point or geometry in place.
+        """Fix (lock) a geometry element in place via a Block constraint.
 
         Args:
             sketch_name: Name of the sketch.
             geometry_index: Index of the geometry element.
-            point_index: Point to fix (1=start, 2=end, 3=center).
-                        -1 to fix the entire element.
+            point_index: Ignored — Block always locks the whole element
+                (Sketcher has no point-level Block). To lock a single point,
+                use constrain_distance_x + constrain_distance_y instead.
             doc_name: Document containing the sketch. Uses active document if None.
 
         Returns:
@@ -2785,6 +2931,9 @@ doc.openTransaction("Add External Geometry")
 try:
     sketch.addExternal({object_name!r}, {element!r})
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -2831,6 +2980,9 @@ doc.openTransaction("Delete Sketch Geometry")
 try:
     sketch.delGeometry({geometry_index})
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -2877,6 +3029,9 @@ doc.openTransaction("Delete Sketch Constraint")
 try:
     sketch.delConstraint({constraint_index})
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     _result_ = {{
@@ -2910,7 +3065,7 @@ except Exception:
                 - constraint_count: Number of constraints
                 - external_geometry_count: Number of external geometry references
                 - fully_constrained: Whether sketch is fully constrained
-                - dof: Degrees of freedom remaining
+                - solver_status: Sketch solver return code (0 = solved OK)
         """
         bridge = await get_bridge()
 
@@ -2927,7 +3082,7 @@ _result_ = {{
     "constraint_count": sketch.ConstraintCount,
     "external_geometry_count": sketch.ExternalGeometryCount,
     "fully_constrained": sketch.FullyConstrained if hasattr(sketch, "FullyConstrained") else None,
-    "dof": sketch.solve() if hasattr(sketch, "solve") else None,
+    "solver_status": sketch.solve() if hasattr(sketch, "solve") else None,  # 0 = solved OK (NOT degrees of freedom)
 }}
 """
         result = await bridge.execute_python(code)
@@ -2969,6 +3124,9 @@ doc.openTransaction("Toggle Construction")
 try:
     sketch.toggleConstruction({geometry_index})
     doc.recompute()
+    _invalid = [o.Name for o in doc.Objects if "Invalid" in [str(s) for s in o.State]]
+    if _invalid:
+        raise ValueError("Recompute left invalid objects: %s" % ", ".join(_invalid))
     doc.commitTransaction()
 
     # Check new state
