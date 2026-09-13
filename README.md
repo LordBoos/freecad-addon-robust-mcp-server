@@ -17,62 +17,131 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
 
 <!--TOC-->
 
+
+
 - [FreeCAD Robust MCP Server](#freecad-robust-mcp-server)
+
   - [Table of Contents](#table-of-contents)
+
   - [Features](#features)
+
   - [Installation Requirements / Dependencies](#installation-requirements--dependencies)
+
   - [For Users](#for-users)
+
     - [Quick Links](#quick-links)
+
+    - [Windows Quick Start with Claude Code](#windows-quick-start-with-claude-code)
+
+      - [1. Install the MCP server](#1-install-the-mcp-server)
+
+      - [2. Connect Claude Code to the server](#2-connect-claude-code-to-the-server)
+
+      - [3. Start FreeCAD with the bridge using start-mcp-and-freecad.cmd](#3-start-freecad-with-the-bridge-using-start-mcp-and-freecadcmd)
+
+      - [4. The freecad modeling skill](#4-the-freecad-modeling-skill)
+
   - [Robust MCP Server](#robust-mcp-server)
+
     - [Installation](#installation)
+
       - [Using pip (recommended)](#using-pip-recommended)
+
       - [Using mise and just (from source)](#using-mise-and-just-from-source)
+
       - [Using Docker](#using-docker)
+
     - [Configuration](#configuration)
+
       - [Environment Variables](#environment-variables)
+
       - [Connection Modes](#connection-modes)
+
       - [MCP Client Configuration](#mcp-client-configuration)
+
     - [Usage](#usage)
+
       - [Starting the MCP Bridge in FreeCAD](#starting-the-mcp-bridge-in-freecad)
+
         - [Option A: Using the Workbench (Recommended)](#option-a-using-the-workbench-recommended)
+
         - [Option B: Using just commands (from source)](#option-b-using-just-commands-from-source)
+
       - [Uninstalling the MCP Bridge](#uninstalling-the-mcp-bridge)
+
         - [Checking for Legacy Components](#checking-for-legacy-components)
+
         - [Manual Cleanup (if needed)](#manual-cleanup-if-needed)
+
       - [Running Modes](#running-modes)
+
         - [XML-RPC Mode (Recommended)](#xml-rpc-mode-recommended)
+
         - [Socket Mode (JSON-RPC)](#socket-mode-json-rpc)
+
         - [Headless Mode](#headless-mode)
+
         - [Embedded Mode (Linux Only)](#embedded-mode-linux-only)
+
     - [Available Tools](#available-tools)
+
       - [Execution & Debugging (5 tools)](#execution--debugging-5-tools)
+
       - [Document Management (7 tools)](#document-management-7-tools)
+
       - [Object Creation - Primitives (8 tools)](#object-creation---primitives-8-tools)
+
       - [Object Management (12 tools)](#object-management-12-tools)
+
       - [PartDesign - Sketching (14 tools)](#partdesign---sketching-14-tools)
+
       - [PartDesign - Patterns & Edges (5 tools)](#partdesign---patterns--edges-5-tools)
+
       - [View & Display (11 tools)](#view--display-11-tools)
+
       - [Undo/Redo (3 tools)](#undoredo-3-tools)
+
       - [Export/Import (7 tools)](#exportimport-7-tools)
+
       - [Macro Management (6 tools)](#macro-management-6-tools)
+
       - [Parts Library (2 tools)](#parts-library-2-tools)
+
   - [For Developers](#for-developers)
+
   - [Robust MCP Server Development](#robust-mcp-server-development)
+
     - [Prerequisites](#prerequisites)
+
     - [Initial Setup](#initial-setup)
+
     - [MCP Client Configuration (Development)](#mcp-client-configuration-development)
+
     - [Development Workflow](#development-workflow)
+
     - [Running FreeCAD with the MCP Bridge](#running-freecad-with-the-mcp-bridge)
+
       - [GUI Mode (recommended for development)](#gui-mode-recommended-for-development)
+
       - [Headless Mode (for automation/CI)](#headless-mode-for-automationci)
+
     - [Running Tests](#running-tests)
+
     - [Code Quality](#code-quality)
+
   - [Architecture](#architecture)
+
   - [Acknowledgements](#acknowledgements)
+
     - [Related Projects](#related-projects)
+
   - [License](#license)
 
+
+
 <!--TOC-->
+
+
 
 > The macros that were originally in this repo under the `/macros` directory have been permanently moved to two new GitHub repos:
 >
@@ -107,6 +176,108 @@ This section covers installation and usage for end users who want to use the Rob
 | [Docker Hub](https://hub.docker.com/r/spkane/freecad-robust-mcp)                      | Pre-built Docker images for easy deployment   |
 | [PyPI](https://pypi.org/project/freecad-robust-mcp/)                                  | Python package for pip installation           |
 | [GitHub Releases](https://github.com/spkane/freecad-addon-robust-mcp-server/releases) | Release archives and changelogs               |
+
+### Windows Quick Start with Claude Code
+
+This fork adds a Windows-oriented workflow for using the server from
+[Claude Code](https://docs.anthropic.com/en/docs/claude-code) together with a bundled
+FreeCAD modeling skill.
+
+#### 1. Install the MCP server
+
+Install the server from this checkout so the tool fixes in this fork are used
+(the PyPI package also works, but lags behind):
+
+```powershell
+git clone https://github.com/LordBoos/freecad-addon-robust-mcp-server.git
+cd freecad-addon-robust-mcp-server
+uv tool install .
+```
+
+`uv tool install` puts a `freecad-mcp` executable on your PATH. Re-run it after
+pulling changes. Alternatively use `pip install freecad-robust-mcp` for the upstream
+release.
+
+#### 2. Connect Claude Code to the server
+
+Create `.mcp.json` in the directory where you run Claude Code (this repository, or
+your own project folder), or register the server globally with
+`claude mcp add --scope user freecad -- freecad-mcp --mode xmlrpc`:
+
+```json
+{
+  "mcpServers": {
+    "freecad": {
+      "command": "freecad-mcp",
+      "args": ["--mode", "xmlrpc"],
+      "env": {
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  }
+}
+```
+
+`PYTHONIOENCODING=utf-8` avoids console-encoding errors on Windows when FreeCAD
+returns non-ASCII text. The server connects to the bridge on `localhost:9875`, so
+FreeCAD must be running with the bridge started (next step). Check with `/mcp` inside
+Claude Code that `freecad` shows as connected.
+
+#### 3. Start FreeCAD with the bridge using start-mcp-and-freecad.cmd
+
+Double-click `start-mcp-and-freecad.cmd` or run it from a terminal. It starts the
+FreeCAD GUI with the bridge startup script through `just freecad::run-gui-custom`, so
+the bridge is listening as soon as FreeCAD is up (typically 10-30 s).
+
+Requirements:
+
+- `just` on PATH: `winget install Casey.Just`
+- Git for Windows (the justfile runs its recipes in Git Bash)
+- FreeCAD 1.x installed; the default path is `C:\Program Files\FreeCAD 1.1\bin\freecad.exe`
+
+To use a different FreeCAD location set `FREECAD_EXE` first:
+
+```powershell
+$env:FREECAD_EXE = "D:\Apps\FreeCAD\bin\freecad.exe"
+.\start-mcp-and-freecad.cmd
+```
+
+The script only starts FreeCAD. The MCP server process is started by Claude Code from
+`.mcp.json`, and it reconnects automatically once the bridge is up. If Claude Code was
+started before FreeCAD, the `get_connection_status` tool reports `connected: false`
+until FreeCAD is running; no restart of Claude Code is needed.
+
+Without `just` you can start FreeCAD directly with the same effect:
+
+```powershell
+& "C:\Program Files\FreeCAD 1.1\bin\freecad.exe" ".\freecad\RobustMCPBridge\freecad_mcp_bridge\startup_bridge.py"
+```
+
+#### 4. The freecad modeling skill
+
+The repository ships a Claude Code skill in `.claude/skills/freecad/`. It is loaded
+automatically when Claude Code runs inside this repository, and it teaches Claude how
+to model parametrically with the MCP tools: PartDesign-first workflows, geometric
+selection of faces and edges instead of guessed indices, numeric verification with
+`BoundBox` and `Volume`, a FreeCAD 1.1 compatibility matrix for the MCP tools, print
+quality STL export, and a headless fallback via `freecadcmd.exe` when the MCP server
+is not connected. The skill also knows how to start FreeCAD itself with
+`start-mcp-and-freecad.cmd` when the bridge is not reachable.
+
+To use the skill from any other project, copy or link the folder into your user
+skills directory:
+
+```powershell
+Copy-Item -Recurse .claude\skills\freecad "$env:USERPROFILE\.claude\skills\freecad"
+```
+
+Then just ask, for example: "Design a 40x40 mm enclosure with M3 mounting holes and
+export it as STL". Claude will invoke the skill, probe the connection, create a
+PartDesign body, and verify each feature numerically.
+
+Paths inside `SKILL.md` written as `<repo>` refer to the checkout root; the FreeCAD
+executable path and the Bambu Studio slicer path are specific to a typical Windows
+installation and can be edited to match your machine.
 
 ## Robust MCP Server
 

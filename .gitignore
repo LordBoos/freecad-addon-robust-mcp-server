@@ -121,4 +121,5 @@ Thumbs.db
 
 # Local configuration
 .mcp.json
-.claude
+.claude/*
+!.claude/skills/

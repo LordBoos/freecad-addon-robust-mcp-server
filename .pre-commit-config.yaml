@@ -4,6 +4,9 @@
 default_language_version:
   python: python3.11  # Must match FreeCAD's bundled Python version
 
+# Claude Code skills are working notes for the AI assistant, not project code or docs
+exclude: ^\.claude/skills/
+
 repos:
   # ==========================================================================
   # General File Hygiene
