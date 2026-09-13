@@ -118,6 +118,9 @@ source = "vcs"
 # Fall back version when not in a git repo (e.g., source tarball)
 version_scheme = "guess-next-dev"
 local_scheme = "node-and-date"
+# Used when there is no .git directory at all (e.g. a GitHub ZIP download);
+# without it hatch-vcs fails with "setuptools-scm was unable to detect version"
+fallback_version = "0.0.0+local"
 
 [tool.hatch.build.hooks.vcs]
 version-file = "src/freecad_mcp/_version.py"

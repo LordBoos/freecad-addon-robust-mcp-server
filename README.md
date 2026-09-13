@@ -182,18 +182,23 @@ FreeCAD modeling skill.
 
 #### 1. Install the MCP server
 
-Install the server from this checkout so the tool fixes in this fork are used
-(the PyPI package also works, but lags behind):
+Install [uv](https://docs.astral.sh/uv/) (`winget install astral-sh.uv`), then
+install the server straight from this fork so its tool fixes are used (the PyPI
+package also works, but lags behind):
 
 ```powershell
-git clone https://github.com/LordBoos/freecad-addon-robust-mcp-server.git
-cd freecad-addon-robust-mcp-server
-uv tool install .
+uv tool install git+https://github.com/LordBoos/freecad-addon-robust-mcp-server
 ```
 
-`uv tool install` puts a `freecad-mcp` executable on your PATH. Re-run it after
-pulling changes. Alternatively use `pip install freecad-robust-mcp` for the upstream
-release.
+`uv tool install` puts a `freecad-mcp` executable on your PATH. Run
+`uv tool upgrade freecad-robust-mcp` to pick up new commits. You still need a copy
+of the repository for the FreeCAD side (the bridge startup script used by
+`start-mcp-and-freecad.cmd`): clone it with `git clone` or download the GitHub ZIP.
+
+If you prefer installing from a local checkout, run `uv tool install .` inside it. The
+package version comes from git tags, so a `git clone` works directly; a GitHub ZIP
+download has no `.git` folder and installs as version `0.0.0+local`, which is fine for
+use with Claude Code.
 
 #### 2. Connect Claude Code to the server
 
