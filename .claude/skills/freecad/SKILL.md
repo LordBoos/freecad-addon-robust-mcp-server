@@ -40,9 +40,9 @@ If `get_connection_status()` returns `connected: false`, start FreeCAD with the 
 Start-Process -FilePath "<repo>\start-mcp-and-freecad.cmd" -WorkingDirectory "<repo>"
 ```
 
-The script launches the FreeCAD GUI detached with the bridge startup script (`just freecad::run-gui-custom`; requires `just` on PATH — installed via winget). Then poll `get_connection_status()` every ~5 s until `connected: true` — typical GUI startup is 10–30 s. If still not connected after ~90 s, check for a stray process (`Get-Process FreeCAD*`) and report to the user instead of retrying forever.
+The script launches the FreeCAD GUI detached with the bridge startup script (calls `freecad.exe` directly, no `just` needed; FreeCAD path autodetected or taken from `FREECAD_EXE`). Then poll `get_connection_status()` every ~5 s until `connected: true` — typical GUI startup is 10–30 s. If still not connected after ~90 s, check for a stray process (`Get-Process FreeCAD*`) and report to the user instead of retrying forever.
 
-Fallback if the script or `just` is missing — launch directly, same effect:
+Fallback if the script is missing — launch directly, same effect:
 
 ```powershell
 Start-Process -FilePath "C:\Program Files\FreeCAD 1.1\bin\freecad.exe" -ArgumentList '"<repo>\freecad\RobustMCPBridge\freecad_mcp_bridge\startup_bridge.py"'

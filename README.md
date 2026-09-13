@@ -18,7 +18,6 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
 <!--TOC-->
 
 
-
 - [FreeCAD Robust MCP Server](#freecad-robust-mcp-server)
 
   - [Table of Contents](#table-of-contents)
@@ -138,9 +137,7 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
   - [License](#license)
 
 
-
 <!--TOC-->
-
 
 
 > The macros that were originally in this repo under the `/macros` directory have been permanently moved to two new GitHub repos:
@@ -226,15 +223,12 @@ Claude Code that `freecad` shows as connected.
 #### 3. Start FreeCAD with the bridge using start-mcp-and-freecad.cmd
 
 Double-click `start-mcp-and-freecad.cmd` or run it from a terminal. It starts the
-FreeCAD GUI with the bridge startup script through `just freecad::run-gui-custom`, so
-the bridge is listening as soon as FreeCAD is up (typically 10-30 s).
+FreeCAD GUI directly with the bridge startup script, so the bridge is listening as soon
+as FreeCAD is up (typically 10-30 s). It needs nothing but FreeCAD 1.x installed; `just`
+and Git Bash are not required for this script.
 
-Requirements:
-
-- `just` on PATH: `winget install Casey.Just`
-- Git for Windows (the justfile runs its recipes in Git Bash)
-- FreeCAD 1.x installed; the default path is `C:\Program Files\FreeCAD 1.1\bin\freecad.exe`
-
+The script looks for FreeCAD in the usual locations (`C:\Program Files\FreeCAD 1.1`,
+`C:\Program Files\FreeCAD 1.0`, and the per-user `%LOCALAPPDATA%\Programs` variants).
 To use a different FreeCAD location set `FREECAD_EXE` first:
 
 ```powershell
@@ -247,11 +241,16 @@ The script only starts FreeCAD. The MCP server process is started by Claude Code
 started before FreeCAD, the `get_connection_status` tool reports `connected: false`
 until FreeCAD is running; no restart of Claude Code is needed.
 
-Without `just` you can start FreeCAD directly with the same effect:
+The same can be done by hand, which is all the script does:
 
 ```powershell
 & "C:\Program Files\FreeCAD 1.1\bin\freecad.exe" ".\freecad\RobustMCPBridge\freecad_mcp_bridge\startup_bridge.py"
 ```
+
+The `just` recipes (`just freecad::run-gui` and friends) are for development. On
+Windows they run in Git Bash and `just` needs `cygpath` from Git for Windows on the
+PATH; if you see an error about `cygpath` not being found, add
+`C:\Program Files\Git\usr\bin` to your PATH or run `just` from a Git Bash terminal.
 
 #### 4. The freecad modeling skill
 
